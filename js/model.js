@@ -22,6 +22,22 @@ export const StitchType = {
 };
 
 /**
+ * Geometry defaults for supported stitch types.
+ * height controls the rough target length of parent/child edges.
+ * width controls the nominal spacing a stitch wants along a round.
+ */
+export const StitchGeometry = {
+  [StitchType.MR]:  { height: 0.8, width: 0.8 },
+  [StitchType.SC]:  { height: 1.0, width: 0.8 },
+  [StitchType.INC]: { height: 1.0, width: 0.8 },
+  [StitchType.DEC]: { height: 1.0, width: 0.8 },
+ };
+
+export function getStitchGeometry(type) {
+  return StitchGeometry[type] ?? StitchGeometry[StitchType.SC];
+}
+
+/**
  * A single stitch node in the stitch graph.
  *
  * Core fields (topology):
