@@ -36,6 +36,7 @@ const PLANAR_FALLBACK_RATIO = 0.2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
+const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
 /**
  * Compute 3D positions for every stitch in the graph.
@@ -120,14 +121,24 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   });
 
   for (let iter = 0; iter < ROUND_RELAX_ITERATIONS; iter++) {
+   let maxShift = 0;
+
    for (let i = 0; i < points.length; i++) {
-     points[i].x += (anchors[i].x - points[i].x) * TETHER_PULL;
-     points[i].z += (anchors[i].z - points[i].z) * TETHER_PULL;
+     const nextX = points[i].x + (anchors[i].x - points[i].x) * TETHER_PULL;
+     const nextZ = points[i].z + (anchors[i].z - points[i].z) * TETHER_PULL;
+     maxShift = Math.max(maxShift, Math.hypot(nextX - points[i].x, nextZ - points[i].z));
+     points[i].x = nextX;
+     points[i].z = nextZ;
    }
 
    for (let i = 0; i < points.length; i++) {
      const j = (i + 1) % points.length;
-     relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length);
+     maxShift = Math.max(maxShift, relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length));
+   }
+
+   for (let i = points.length - 1; i >= 0; i--) {
+     const j = (i + 1) % points.length;
+     maxShift = Math.max(maxShift, relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length));
    }
 
    const centroid = computeCentroid(points);
@@ -136,10 +147,15 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
      const pull = TARGET_RADIUS_PULL + stuffing * 0.08;
      const scale = 1 + ((targetRadius - avgRadius) / avgRadius) * pull;
      for (const point of points) {
+       const prevX = point.x;
+       const prevZ = point.z;
        point.x = centroid.x + (point.x - centroid.x) * scale;
        point.z = centroid.z + (point.z - centroid.z) * scale;
+       maxShift = Math.max(maxShift, Math.hypot(point.x - prevX, point.z - prevZ));
      }
    }
+
+   if (maxShift < RELAX_CONVERGENCE_EPSILON) break;
   }
 
   const centroid = computeCentroid(points);
@@ -199,10 +215,18 @@ function relaxPair(a, b, targetDistance, fallbackAngleIndex, fallbackAngleCount)
   }
 
   const correction = ((targetDistance - dist) / dist) * 0.5;
+  const prevAx = a.x;
+  const prevAz = a.z;
+  const prevBx = b.x;
+  const prevBz = b.z;
   a.x -= dx * correction;
   a.z -= dz * correction;
   b.x += dx * correction;
   b.z += dz * correction;
+  return Math.max(
+    Math.hypot(a.x - prevAx, a.z - prevAz),
+    Math.hypot(b.x - prevBx, b.z - prevBz),
+  );
 }
 
 function computeCentroid(points) {
