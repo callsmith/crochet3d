@@ -76,11 +76,8 @@ export function computePositions(graph, stuffing = 0.5) {
    roundsToPinch.add(0);
   }
 
-  // FO markers pinch specific completed rounds.
-  for (const roundIndex of roundsToPinch) {
-   if (roundIndex < 0 || roundIndex >= numRounds) continue;
-   effectiveRadii[roundIndex] = naturalRadii[roundIndex] * PINCH_ROUND_RADIUS_FACTOR;
-  }
+  // FO pinches are applied after layout so they close tightly even when
+  // parent-driven relaxation would otherwise keep a larger radius.
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
