@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Simple Ball (8 rounds)",
+    "pattern": "R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: (SC 2, INC) x6\nR5: SC 24\nR6: (SC 2, DEC) x6\nR7: (SC, DEC) x6\nR8: DEC x6"
+  },
+  {
+    "name": "Larger Ball (10 rounds)",
+    "pattern": "R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: (SC 2, INC) x6\nR5: (SC 3, INC) x6\nR6: SC 30\nR7: SC 30\nR8: (SC 3, DEC) x6\nR9: (SC 2, DEC) x6\nR10: (SC, DEC) x6\nR11: DEC x6"
+  },
+  {
+    "name": "Egg / Oval",
+    "pattern": "R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: SC 18\nR5: SC 18\nR6: SC 18\nR7: (SC, DEC) x6\nR8: DEC x6"
+  },
+  {
+    "name": "Localized Bumps Test",
+    "comment": "INC cluster at one side should produce a localized bulge, not a uniform ring",
+    "pattern": "R1: MR 6\nR2: INC x6\nR3: SC 12\nR4: SC 5, INC 3, SC 4\nR5: SC 5, INC 3, SC 7\nR6: SC 18\nR7: SC 18\nR8: (SC, DEC) x6\nR9: DEC x6"
+  },
+  {
+    "name": "Localized Decrease Test",
+    "comment": "DEC cluster at one side should produce a localized indentation",
+    "pattern": "R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: SC 18\nR5: SC 4, DEC 3, SC 5\nR6: SC 12\nR7: (SC, DEC) x4\nR8: DEC x4"
+  },
+  {
+    "name": "Cylinder / Tube",
+    "pattern": "R1: MR 8\nR2: INC x8\nR3: SC 16\nR4: SC 16\nR5: SC 16\nR6: SC 16\nR7: SC 16\nR8: SC 16\nR9: DEC x8"
+  },
+  {
+    "name": "Simple SC Only",
+    "pattern": "R1: MR 6\nR2: SC 6\nR3: SC 6\nR4: SC 6\nR5: SC 6"
+  }
+]
