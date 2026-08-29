@@ -66,23 +66,14 @@ export function computePositions(graph, stuffing = 0.5) {
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
-  let currentY = 0;
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const avgHeight = average(round.map(stitch => getStitchGeometry(stitch.type).height));
-   const verticalStep = avgHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
-   currentY += verticalStep;
-
-   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], verticalStep, stuffing);
+   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
    for (let si = 0; si < round.length; si++) {
-     round[si].position = {
-       x: relaxed[si].x,
-       y: currentY,
-       z: relaxed[si].z,
-     };
+     round[si].position = relaxed[si];
    }
   }
 
@@ -104,16 +95,18 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, stuffing) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   const prevCentroid = computeCentroid(prevRound);
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
+   const verticalStep = stitchVerticalStep(targetHeight, stuffing);
    const planarSquared = targetHeight ** 2 - verticalStep ** 2;
    const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
    return {
      x: parentCenter.x + direction.x * planarOffset,
+     y: parentCenter.y + verticalStep,
      z: parentCenter.z + direction.z * planarOffset,
    };
   });
@@ -169,12 +162,14 @@ function averageParentPosition(stitch, prevRound, fallbackIndex) {
   const parents = stitch.parents.length ? stitch.parents : [prevRound[fallbackIndex % prevRound.length]];
   const sum = parents.reduce((acc, parent) => {
    acc.x += parent.position.x;
+   acc.y += parent.position.y;
    acc.z += parent.position.z;
    return acc;
-  }, { x: 0, z: 0 });
+  }, { x: 0, y: 0, z: 0 });
 
   return {
    x: sum.x / parents.length,
+   y: sum.y / parents.length,
    z: sum.z / parents.length,
   };
 }
@@ -257,6 +252,10 @@ function normalizeScaleToStitchHeights(graph) {
    stitch.position.y *= scale;
    stitch.position.z *= scale;
   }
+}
+
+function stitchVerticalStep(targetHeight, stuffing) {
+  return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
 }
 
 function centerVertically(graph) {
