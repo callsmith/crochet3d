@@ -39,6 +39,11 @@ const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
 // Magic rings and FO pinches are essentially a point in real life.
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
+// A first round that does not increase much from the magic ring should stay
+// much tighter than one that doubles the ring immediately.
+const MAGIC_RING_EXPANSION_OFFSET = 0.65;
+const MAGIC_RING_EXPANSION_MIN = 0.35;
+const MAGIC_RING_EXPANSION_MAX = 1.0;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
 /**
@@ -195,14 +200,12 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
   const avgRadius = average(points.map(p => distance2d(p, centroid)));
   if (avgRadius > MIN_DIRECTION_LENGTH) {
    const radiusError = Math.abs(effectiveTargetRadius - avgRadius) / avgRadius;
-   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) {
-     return isFromMagicRing ? matchParentEdgeLengths(points, round, prevRound) : points;
-   }
-
-   const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
-   for (const point of points) {
-     point.x = centroid.x + (point.x - centroid.x) * finalScale;
-     point.z = centroid.z + (point.z - centroid.z) * finalScale;
+   if (radiusError > FINAL_RADIUS_CORRECTION_THRESHOLD) {
+     const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
+     for (const point of points) {
+       point.x = centroid.x + (point.x - centroid.x) * finalScale;
+       point.z = centroid.z + (point.z - centroid.z) * finalScale;
+     }
    }
   }
 
@@ -331,7 +334,10 @@ function stitchPlanarOffset(stitch, stuffing) {
 
 function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
   const expansionRatio = round.length / Math.max(prevRound.length, 1);
-  const expansionFactor = Math.max(0.35, Math.min(1, expansionRatio - 0.65));
+  const expansionFactor = Math.max(
+    MAGIC_RING_EXPANSION_MIN,
+    Math.min(MAGIC_RING_EXPANSION_MAX, expansionRatio - MAGIC_RING_EXPANSION_OFFSET),
+  );
   return Math.min(
     targetRadius,
     average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))) * expansionFactor,
