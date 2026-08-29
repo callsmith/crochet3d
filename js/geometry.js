@@ -209,7 +209,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
    }
   }
 
-  return isFromMagicRing ? matchParentEdgeLengths(points, round, prevRound) : points;
+  return isFromMagicRing ? reprojectToStitchHeight(points, round, prevRound) : points;
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -344,7 +344,7 @@ function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
   );
 }
 
-function matchParentEdgeLengths(points, round, prevRound) {
+function reprojectToStitchHeight(points, round, prevRound) {
   // The first worked round is uniquely constrained by the magic ring's pinched
   // center. Reproject just those stitches back to their nominal height so the
   // base stays rounded instead of stretching into a cone.
