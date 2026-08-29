@@ -41,7 +41,7 @@ const MIN_DIRECTION_LENGTH = 1e-5;
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
 // A first round that does not increase much from the magic ring should stay
 // much tighter than one that doubles the ring immediately.
-const MAGIC_RING_EXPANSION_OFFSET = 0.65;
+const MAGIC_RING_FULL_EXPANSION_RATIO = 2.0;
 const MAGIC_RING_EXPANSION_MIN = 0.35;
 const MAGIC_RING_EXPANSION_MAX = 1.0;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
@@ -336,7 +336,7 @@ function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
   const expansionRatio = round.length / Math.max(prevRound.length, 1);
   const expansionFactor = Math.max(
     MAGIC_RING_EXPANSION_MIN,
-    Math.min(MAGIC_RING_EXPANSION_MAX, expansionRatio - MAGIC_RING_EXPANSION_OFFSET),
+    Math.min(MAGIC_RING_EXPANSION_MAX, expansionRatio / MAGIC_RING_FULL_EXPANSION_RATIO),
   );
   return Math.min(
     targetRadius,
