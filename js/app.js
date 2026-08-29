@@ -47,35 +47,49 @@ rendererInstance = createRenderer(canvas, labelContainer);
 
 // ── Load example patterns ──────────────────────────────────────────────────────
 
-fetch('./examples/examples.json')
-  .then(r => r.json())
-  .then(examples => {
-    examples.forEach((ex, i) => {
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = ex.name;
-      exampleSelect.appendChild(opt);
-    });
+// Inline copy of examples/examples.json so the dropdown always works,
+// even when the page is opened via file:// or when the JSON fetch fails.
+const BUILTIN_EXAMPLES = [
+  { name: 'Simple Ball (8 rounds)',      pattern: 'R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: (SC 2, INC) x6\nR5: SC 24\nR6: (SC 2, DEC) x6\nR7: (SC, DEC) x6\nR8: DEC x6' },
+  { name: 'Larger Ball (10 rounds)',     pattern: 'R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: (SC 2, INC) x6\nR5: (SC 3, INC) x6\nR6: SC 30\nR7: SC 30\nR8: (SC 3, DEC) x6\nR9: (SC 2, DEC) x6\nR10: (SC, DEC) x6\nR11: DEC x6' },
+  { name: 'Egg / Oval',                  pattern: 'R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: SC 18\nR5: SC 18\nR6: SC 18\nR7: (SC, DEC) x6\nR8: DEC x6' },
+  { name: 'Localized Bumps Test',        pattern: 'R1: MR 6\nR2: INC x6\nR3: SC 12\nR4: SC 5, INC 3, SC 4\nR5: SC 5, INC 3, SC 7\nR6: SC 18\nR7: SC 18\nR8: (SC, DEC) x6\nR9: DEC x6' },
+  { name: 'Localized Decrease Test',     pattern: 'R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: SC 18\nR5: SC 4, DEC 3, SC 5\nR6: SC 12\nR7: (SC, DEC) x4\nR8: DEC x4' },
+  { name: 'Cylinder / Tube',             pattern: 'R1: MR 8\nR2: INC x8\nR3: SC 16\nR4: SC 16\nR5: SC 16\nR6: SC 16\nR7: SC 16\nR8: SC 16\nR9: DEC x8' },
+  { name: 'Simple SC Only',             pattern: 'R1: MR 6\nR2: SC 6\nR3: SC 6\nR4: SC 6\nR5: SC 6' },
+];
 
-    // Load first example by default
-    if (examples.length > 0) {
-      patternInput.value = examples[0].pattern;
+function loadExamples(examples) {
+  examples.forEach((ex, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = ex.name;
+    exampleSelect.appendChild(opt);
+  });
+
+  // Load first example by default
+  if (examples.length > 0) {
+    patternInput.value = examples[0].pattern;
+    doRender();
+  }
+
+  exampleSelect.addEventListener('change', () => {
+    const ex = examples[parseInt(exampleSelect.value, 10)];
+    if (ex) {
+      patternInput.value = ex.pattern;
       doRender();
     }
-
-    exampleSelect.addEventListener('change', () => {
-      const ex = examples[parseInt(exampleSelect.value, 10)];
-      if (ex) {
-        patternInput.value = ex.pattern;
-        doRender();
-      }
-    });
-  })
-  .catch(() => {
-    // Fallback: show a basic default pattern if examples.json isn't found
-    patternInput.value = DEFAULT_PATTERN;
-    doRender();
   });
+}
+
+// Try fetching the JSON first; fall back to the inline copy on any error.
+fetch('./examples/examples.json')
+  .then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(examples => loadExamples(examples))
+  .catch(() => loadExamples(BUILTIN_EXAMPLES));
 
 // ── UI event handlers ─────────────────────────────────────────────────────────
 
