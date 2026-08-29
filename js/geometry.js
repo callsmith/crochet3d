@@ -100,7 +100,8 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
-   const planarOffset = Math.sqrt(Math.max(targetHeight ** 2 - verticalStep ** 2, targetHeight ** 2 * 0.2));
+   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
+   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * 0.2);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      z: parentCenter.z + direction.z * planarOffset,
@@ -123,7 +124,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
 
    for (let i = 0; i < points.length; i++) {
      const j = (i + 1) % points.length;
-     relaxPair(points[i], points[j], desiredNeighborDistances[i], i === points.length - 1);
+     relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length);
    }
 
    const centroid = computeCentroid(points);
@@ -177,13 +178,13 @@ function outwardDirection(point, centroid, count, index) {
   return { x: Math.cos(theta), z: Math.sin(theta) };
 }
 
-function relaxPair(a, b, targetDistance, wrappedPair) {
+function relaxPair(a, b, targetDistance, pairIndex, pairCount) {
   let dx = b.x - a.x;
   let dz = b.z - a.z;
   let dist = Math.hypot(dx, dz);
 
   if (dist < MIN_DIRECTION_LENGTH) {
-   const fallbackAngle = wrappedPair ? 0 : Math.PI / 2;
+   const fallbackAngle = (2 * Math.PI * pairIndex) / Math.max(pairCount, 1);
    dx = Math.cos(fallbackAngle) * MIN_DIRECTION_LENGTH;
    dz = Math.sin(fallbackAngle) * MIN_DIRECTION_LENGTH;
    dist = MIN_DIRECTION_LENGTH;
