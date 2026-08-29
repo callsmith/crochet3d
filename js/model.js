@@ -19,6 +19,7 @@ export const StitchType = {
   SC:  'SC',   // Single Crochet — 1 parent → 1 child
   INC: 'INC',  // Increase — 1 parent → 2 children
   DEC: 'DEC',  // Decrease / SCTOG — 2 parents → 1 child
+  FO:  'FO',   // Finish Off — marker op; pinches the previous worked round
 };
 
 /**
@@ -85,6 +86,7 @@ export class Stitch {
 export class StitchGraph {
   constructor() {
     this.rounds  = [];  // Stitch[][]
+    this.pinchedRoundIndices = new Set(); // round indices explicitly marked to pinch
     this._nextId = 0;   // Per-instance ID counter — safe for concurrent graph builds
   }
 

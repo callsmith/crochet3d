@@ -37,7 +37,7 @@ const PLANAR_FALLBACK_RATIO = 0.2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
-// Magic rings and FO'd final rounds are essentially a point in real life.
+// Magic rings and FO pinches are essentially a point in real life.
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
@@ -68,14 +68,16 @@ export function computePositions(graph, stuffing = 0.5) {
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
 
-  // Magic rings and FO'd final rounds are essentially a point in real life.
+  const roundsToPinch = new Set(graph.pinchedRoundIndices ?? []);
+
+  // Magic rings are essentially a point in real life.
   const isMagicRing = rounds[0].every(s => s.type === StitchType.MR);
   if (isMagicRing) {
-   effectiveRadii[0] *= PINCH_ROUND_RADIUS_FACTOR;
+   roundsToPinch.add(0);
   }
-  if (numRounds > 1) {
-   effectiveRadii[numRounds - 1] *= PINCH_ROUND_RADIUS_FACTOR;
-  }
+
+  // FO pinches are applied after layout so they close tightly even when
+  // parent-driven relaxation would otherwise keep a larger radius.
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
@@ -88,6 +90,11 @@ export function computePositions(graph, stuffing = 0.5) {
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
+  }
+
+  for (const roundIndex of roundsToPinch) {
+   if (roundIndex < 0 || roundIndex >= numRounds) continue;
+   pinchRound(rounds[roundIndex], PINCH_ROUND_RADIUS_FACTOR);
   }
 
   normalizeScaleToStitchHeights(graph);
@@ -297,6 +304,15 @@ function normalizeScaleToStitchHeights(graph) {
 
 function stitchVerticalStep(targetHeight, stuffing) {
   return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
+}
+
+function pinchRound(round, radiusFactor) {
+  if (round.length === 0) return;
+  const centroid = computeCentroid(round);
+  for (const stitch of round) {
+    stitch.position.x = centroid.x + (stitch.position.x - centroid.x) * radiusFactor;
+    stitch.position.z = centroid.z + (stitch.position.z - centroid.z) * radiusFactor;
+  }
 }
 
 function centerVertically(graph) {
