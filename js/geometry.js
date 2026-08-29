@@ -130,7 +130,7 @@ function layoutFoundationRound(round, radius) {
 function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromMagicRing = false) {
   const prevCentroid = computeCentroid(prevRound);
   const effectiveTargetRadius = isFromMagicRing
-   ? Math.min(targetRadius, average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))))
+   ? magicRingTargetRadius(round, prevRound, targetRadius, stuffing)
    : targetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
@@ -196,7 +196,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
   if (avgRadius > MIN_DIRECTION_LENGTH) {
    const radiusError = Math.abs(effectiveTargetRadius - avgRadius) / avgRadius;
    if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) {
-     return matchParentEdgeLengths(points, round, prevRound);
+     return isFromMagicRing ? matchParentEdgeLengths(points, round, prevRound) : points;
    }
 
    const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
@@ -206,7 +206,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
    }
   }
 
-  return matchParentEdgeLengths(points, round, prevRound);
+  return isFromMagicRing ? matchParentEdgeLengths(points, round, prevRound) : points;
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -329,7 +329,19 @@ function stitchPlanarOffset(stitch, stuffing) {
   return Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
 }
 
+function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
+  const expansionRatio = round.length / Math.max(prevRound.length, 1);
+  const expansionFactor = Math.max(0.35, Math.min(1, expansionRatio - 0.65));
+  return Math.min(
+    targetRadius,
+    average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))) * expansionFactor,
+  );
+}
+
 function matchParentEdgeLengths(points, round, prevRound) {
+  // The first worked round is uniquely constrained by the magic ring's pinched
+  // center. Reproject just those stitches back to their nominal height so the
+  // base stays rounded instead of stretching into a cone.
   return points.map((point, index) => {
     const parentCenter = averageParentPosition(round[index], prevRound, index);
     const dx = point.x - parentCenter.x;
