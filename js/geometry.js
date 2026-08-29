@@ -79,7 +79,7 @@ export function computePositions(graph, stuffing = 0.5) {
   // FO markers pinch specific completed rounds.
   for (const roundIndex of roundsToPinch) {
    if (roundIndex < 0 || roundIndex >= numRounds) continue;
-   effectiveRadii[roundIndex] = Math.min(effectiveRadii[roundIndex], naturalRadii[roundIndex]) * PINCH_ROUND_RADIUS_FACTOR;
+   effectiveRadii[roundIndex] = naturalRadii[roundIndex] * PINCH_ROUND_RADIUS_FACTOR;
   }
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
