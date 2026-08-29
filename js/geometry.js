@@ -134,7 +134,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
 
    for (let i = 0; i < points.length; i++) {
      const j = (i + 1) % points.length;
-     relaxPair(points[i], points[j], desiredNeighborDistances[i], i + 0.5, points.length);
+     relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length);
    }
 
    const centroid = computeCentroid(points);
@@ -214,8 +214,9 @@ function computeCentroid(points) {
   if (points.length === 0) return { x: 0, z: 0 };
 
   const sum = points.reduce((acc, point) => {
-   acc.x += point.x;
-   acc.z += point.z;
+   const pos = point.position ?? point;
+   acc.x += pos.x;
+   acc.z += pos.z;
    return acc;
   }, { x: 0, z: 0 });
 
