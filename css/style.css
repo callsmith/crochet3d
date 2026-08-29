@@ -315,3 +315,47 @@ header .subtitle {
 #left-panel::-webkit-scrollbar { width: 5px; }
 #left-panel::-webkit-scrollbar-track { background: transparent; }
 #left-panel::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 10px; }
+
+/* ── Mobile / Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  html, body {
+    overflow: auto;
+  }
+
+  #app {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  #main {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  #left-panel {
+    width: 100%;
+    min-width: unset;
+    border-right: none;
+    border-bottom: 1px solid var(--surface2);
+    overflow-y: visible;
+  }
+
+  #pattern-input {
+    height: 140px;
+  }
+
+  #viewport {
+    height: 60vw;
+    min-height: 260px;
+    flex: none;
+  }
+
+  header h1 {
+    font-size: 15px;
+  }
+
+  header .subtitle {
+    display: none;
+  }
+}

@@ -61,7 +61,24 @@ export function createRenderer(canvas, labelContainer) {
   const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.01, 1000);
   camera.position.set(0, 0, 8);
 
-  const webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
+  // Try WebGL2, fall back to WebGL1 if context creation fails.
+  let webgl;
+  try {
+    webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
+  } catch (e) {
+    try {
+      // Force a WebGL1 context explicitly for older / restricted browsers.
+      const ctx = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!ctx) throw new Error('no webgl');
+      webgl = new THREE.WebGLRenderer({ canvas, context: ctx, antialias: false });
+    } catch (e2) {
+      throw new Error('WebGL is not supported or is disabled in this browser. Please enable hardware acceleration.');
+    }
+  }
+  canvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault();
+    console.warn('WebGL context lost — reload the page to restore the 3D view.');
+  });
   webgl.setPixelRatio(window.devicePixelRatio);
   webgl.setSize(canvas.clientWidth, canvas.clientHeight);
 
