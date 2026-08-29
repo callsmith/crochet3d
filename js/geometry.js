@@ -39,6 +39,11 @@ const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
 // Magic rings and FO pinches are essentially a point in real life.
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
+// A first round that does not increase much from the magic ring should stay
+// much tighter than one that doubles the ring immediately.
+const MAGIC_RING_FULL_EXPANSION_RATIO = 2.0;
+const MAGIC_RING_EXPANSION_MIN = 0.35;
+const MAGIC_RING_EXPANSION_MAX = 1.0;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
 /**
@@ -76,17 +81,29 @@ export function computePositions(graph, stuffing = 0.5) {
    roundsToPinch.add(0);
   }
 
+  layoutFoundationRound(rounds[0], effectiveRadii[0]);
+  if (roundsToPinch.has(0)) {
+    // Pinch the magic ring before later rounds are placed so the first worked
+    // stitches anchor to the tight center they come from in real crochet.
+    pinchRound(rounds[0], PINCH_ROUND_RADIUS_FACTOR);
+    roundsToPinch.delete(0);
+  }
+
   // FO pinches are applied after layout so they close tightly even when
   // parent-driven relaxation would otherwise keep a larger radius.
-
-  layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
+   const relaxed = layoutRoundFromParents(
+     round,
+     prevRound,
+     effectiveRadii[ri],
+     stuffing,
+     prevRound.every(stitch => stitch.type === StitchType.MR),
+   );
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -115,15 +132,17 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromMagicRing = false) {
   const prevCentroid = computeCentroid(prevRound);
+  const effectiveTargetRadius = isFromMagicRing
+   ? magicRingTargetRadius(round, prevRound, targetRadius, stuffing)
+   : targetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
    const verticalStep = stitchVerticalStep(targetHeight, stuffing);
-   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
-   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
+   const planarOffset = stitchPlanarOffset(stitch, stuffing);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -164,7 +183,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
    const avgRadius = average(points.map(p => distance2d(p, centroid)));
    if (avgRadius > MIN_DIRECTION_LENGTH) {
      const pull = TARGET_RADIUS_PULL + stuffing * 0.08;
-     const scale = 1 + ((targetRadius - avgRadius) / avgRadius) * pull;
+     const scale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * pull;
      for (const point of points) {
        const prevX = point.x;
        const prevZ = point.z;
@@ -180,17 +199,17 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   const centroid = computeCentroid(points);
   const avgRadius = average(points.map(p => distance2d(p, centroid)));
   if (avgRadius > MIN_DIRECTION_LENGTH) {
-   const radiusError = Math.abs(targetRadius - avgRadius) / avgRadius;
-   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) return points;
-
-   const finalScale = 1 + ((targetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
-   for (const point of points) {
-     point.x = centroid.x + (point.x - centroid.x) * finalScale;
-     point.z = centroid.z + (point.z - centroid.z) * finalScale;
+   const radiusError = Math.abs(effectiveTargetRadius - avgRadius) / avgRadius;
+   if (radiusError > FINAL_RADIUS_CORRECTION_THRESHOLD) {
+     const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
+     for (const point of points) {
+       point.x = centroid.x + (point.x - centroid.x) * finalScale;
+       point.z = centroid.z + (point.z - centroid.z) * finalScale;
+     }
    }
   }
 
-  return points;
+  return isFromMagicRing ? reprojectToStitchHeight(points, round, prevRound) : points;
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -304,6 +323,50 @@ function normalizeScaleToStitchHeights(graph) {
 
 function stitchVerticalStep(targetHeight, stuffing) {
   return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
+}
+
+function stitchPlanarOffset(stitch, stuffing) {
+  const targetHeight = getStitchGeometry(stitch.type).height;
+  const verticalStep = stitchVerticalStep(targetHeight, stuffing);
+  const planarSquared = targetHeight ** 2 - verticalStep ** 2;
+  return Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
+}
+
+function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
+  // prevRound is non-empty at real call sites; the divisor guard is only a
+  // defensive fallback in case a malformed graph ever reaches this path.
+  const expansionRatio = round.length / Math.max(prevRound.length, 1);
+  const expansionFactor = Math.max(
+    MAGIC_RING_EXPANSION_MIN,
+    Math.min(MAGIC_RING_EXPANSION_MAX, expansionRatio / MAGIC_RING_FULL_EXPANSION_RATIO),
+  );
+  return Math.min(
+    targetRadius,
+    average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))) * expansionFactor,
+  );
+}
+
+function reprojectToStitchHeight(points, round, prevRound) {
+  // The first worked round is uniquely constrained by the magic ring's pinched
+  // center. Reproject just those stitches back to their nominal height so the
+  // base stays rounded instead of stretching into a cone. This intentionally
+  // uses the post-pinch parent centers, because stitches coming from the ring
+  // should measure from the tightened anchor they are worked into.
+  return points.map((point, index) => {
+    const parentCenter = averageParentPosition(round[index], prevRound, index);
+    const dx = point.x - parentCenter.x;
+    const dy = point.y - parentCenter.y;
+    const dz = point.z - parentCenter.z;
+    const actual = Math.hypot(dx, dy, dz);
+    const target = getStitchGeometry(round[index].type).height;
+    if (actual <= MIN_DIRECTION_LENGTH || target <= 0) return point;
+    const scale = target / actual;
+    return {
+      x: parentCenter.x + dx * scale,
+      y: parentCenter.y + dy * scale,
+      z: parentCenter.z + dz * scale,
+    };
+  });
 }
 
 function pinchRound(round, radiusFactor) {
