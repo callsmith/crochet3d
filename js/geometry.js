@@ -333,6 +333,8 @@ function stitchPlanarOffset(stitch, stuffing) {
 }
 
 function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
+  // prevRound is non-empty at real call sites; the divisor guard is only a
+  // defensive fallback in case a malformed graph ever reaches this path.
   const expansionRatio = round.length / Math.max(prevRound.length, 1);
   const expansionFactor = Math.max(
     MAGIC_RING_EXPANSION_MIN,
@@ -347,7 +349,9 @@ function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
 function reprojectToStitchHeight(points, round, prevRound) {
   // The first worked round is uniquely constrained by the magic ring's pinched
   // center. Reproject just those stitches back to their nominal height so the
-  // base stays rounded instead of stretching into a cone.
+  // base stays rounded instead of stretching into a cone. This intentionally
+  // uses the post-pinch parent centers, because stitches coming from the ring
+  // should measure from the tightened anchor they are worked into.
   return points.map((point, index) => {
     const parentCenter = averageParentPosition(round[index], prevRound, index);
     const dx = point.x - parentCenter.x;
