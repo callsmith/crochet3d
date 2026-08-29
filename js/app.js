@@ -43,7 +43,14 @@ let currentGraph     = null;
 
 // ── Initialise renderer ────────────────────────────────────────────────────────
 
-rendererInstance = createRenderer(canvas, labelContainer);
+// Wrap in try/catch so a WebGL failure does not abort the rest of module
+// initialisation (the dropdown, event listeners, and fetch all live below this
+// line and would be silently skipped if the exception were left uncaught).
+try {
+  rendererInstance = createRenderer(canvas, labelContainer);
+} catch (e) {
+  showError(`3D renderer unavailable: ${e.message}`);
+}
 
 // ── Load example patterns ──────────────────────────────────────────────────────
 
@@ -114,6 +121,11 @@ patternInput.addEventListener('keydown', e => {
 
 function doRender() {
   clearMessages();
+
+  if (!rendererInstance) {
+    showError('WebGL renderer is not available. Please enable hardware acceleration in your browser settings.');
+    return;
+  }
 
   const text = patternInput.value.trim();
   if (!text) { showError('Please enter a crochet pattern.'); return; }
