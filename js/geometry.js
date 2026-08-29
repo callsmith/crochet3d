@@ -25,6 +25,15 @@ const STITCH_WIDTH_SCALE = 0.8;
 const ROUND_RELAX_ITERATIONS = 48;
 const TETHER_PULL = 0.16;
 const TARGET_RADIUS_PULL = 0.12;
+// Keep most of the parent→child edge vertical while leaving enough planar run
+// for the round to expand and show localized shaping.
+const VERTICAL_STEP_BASE = 0.82;
+const VERTICAL_STEP_STUFFING_REDUCTION = 0.14;
+// When the vertical step would exceed the stitch height, retain a small planar
+// component so coincident parent/child columns can still spread into a round.
+const PLANAR_FALLBACK_RATIO = 0.2;
+const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
+const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
 
 /**
@@ -63,7 +72,7 @@ export function computePositions(graph, stuffing = 0.5) {
    if (round.length === 0) continue;
 
    const avgHeight = average(round.map(stitch => getStitchGeometry(stitch.type).height));
-   const verticalStep = avgHeight * (0.82 - stuffing * 0.14);
+   const verticalStep = avgHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
    currentY += verticalStep;
 
    const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], verticalStep, stuffing);
@@ -101,7 +110,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
    const planarSquared = targetHeight ** 2 - verticalStep ** 2;
-   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * 0.2);
+   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      z: parentCenter.z + direction.z * planarOffset,
@@ -142,7 +151,10 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
   const centroid = computeCentroid(points);
   const avgRadius = average(points.map(p => distance2d(p, centroid)));
   if (avgRadius > MIN_DIRECTION_LENGTH) {
-   const finalScale = targetRadius / avgRadius;
+   const radiusError = Math.abs(targetRadius - avgRadius) / avgRadius;
+   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) return points;
+
+   const finalScale = 1 + ((targetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
    for (const point of points) {
      point.x = centroid.x + (point.x - centroid.x) * finalScale;
      point.z = centroid.z + (point.z - centroid.z) * finalScale;
@@ -178,13 +190,13 @@ function outwardDirection(point, centroid, count, index) {
   return { x: Math.cos(theta), z: Math.sin(theta) };
 }
 
-function relaxPair(a, b, targetDistance, pairIndex, pairCount) {
+function relaxPair(a, b, targetDistance, fallbackAngleIndex, fallbackAngleCount) {
   let dx = b.x - a.x;
   let dz = b.z - a.z;
   let dist = Math.hypot(dx, dz);
 
   if (dist < MIN_DIRECTION_LENGTH) {
-   const fallbackAngle = (2 * Math.PI * pairIndex) / Math.max(pairCount, 1);
+   const fallbackAngle = (2 * Math.PI * fallbackAngleIndex) / Math.max(fallbackAngleCount, 1);
    dx = Math.cos(fallbackAngle) * MIN_DIRECTION_LENGTH;
    dz = Math.sin(fallbackAngle) * MIN_DIRECTION_LENGTH;
    dist = MIN_DIRECTION_LENGTH;
