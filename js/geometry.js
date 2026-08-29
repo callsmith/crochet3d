@@ -92,7 +92,13 @@ export function computePositions(graph, stuffing = 0.5) {
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
+   const relaxed = layoutRoundFromParents(
+     round,
+     prevRound,
+     effectiveRadii[ri],
+     stuffing,
+     prevRound.every(stitch => stitch.type === StitchType.MR),
+   );
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -121,15 +127,17 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromMagicRing = false) {
   const prevCentroid = computeCentroid(prevRound);
+  const effectiveTargetRadius = isFromMagicRing
+   ? Math.min(targetRadius, average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))))
+   : targetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
    const verticalStep = stitchVerticalStep(targetHeight, stuffing);
-   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
-   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
+   const planarOffset = stitchPlanarOffset(stitch, stuffing);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -170,7 +178,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
    const avgRadius = average(points.map(p => distance2d(p, centroid)));
    if (avgRadius > MIN_DIRECTION_LENGTH) {
      const pull = TARGET_RADIUS_PULL + stuffing * 0.08;
-     const scale = 1 + ((targetRadius - avgRadius) / avgRadius) * pull;
+     const scale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * pull;
      for (const point of points) {
        const prevX = point.x;
        const prevZ = point.z;
@@ -186,17 +194,19 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   const centroid = computeCentroid(points);
   const avgRadius = average(points.map(p => distance2d(p, centroid)));
   if (avgRadius > MIN_DIRECTION_LENGTH) {
-   const radiusError = Math.abs(targetRadius - avgRadius) / avgRadius;
-   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) return points;
+   const radiusError = Math.abs(effectiveTargetRadius - avgRadius) / avgRadius;
+   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) {
+     return matchParentEdgeLengths(points, round, prevRound);
+   }
 
-   const finalScale = 1 + ((targetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
+   const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
    for (const point of points) {
      point.x = centroid.x + (point.x - centroid.x) * finalScale;
      point.z = centroid.z + (point.z - centroid.z) * finalScale;
    }
   }
 
-  return points;
+  return matchParentEdgeLengths(points, round, prevRound);
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -310,6 +320,31 @@ function normalizeScaleToStitchHeights(graph) {
 
 function stitchVerticalStep(targetHeight, stuffing) {
   return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
+}
+
+function stitchPlanarOffset(stitch, stuffing) {
+  const targetHeight = getStitchGeometry(stitch.type).height;
+  const verticalStep = stitchVerticalStep(targetHeight, stuffing);
+  const planarSquared = targetHeight ** 2 - verticalStep ** 2;
+  return Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
+}
+
+function matchParentEdgeLengths(points, round, prevRound) {
+  return points.map((point, index) => {
+    const parentCenter = averageParentPosition(round[index], prevRound, index);
+    const dx = point.x - parentCenter.x;
+    const dy = point.y - parentCenter.y;
+    const dz = point.z - parentCenter.z;
+    const actual = Math.hypot(dx, dy, dz);
+    const target = getStitchGeometry(round[index].type).height;
+    if (actual <= MIN_DIRECTION_LENGTH || target <= 0) return point;
+    const scale = target / actual;
+    return {
+      x: parentCenter.x + dx * scale,
+      y: parentCenter.y + dy * scale,
+      z: parentCenter.z + dz * scale,
+    };
+  });
 }
 
 function pinchRound(round, radiusFactor) {
