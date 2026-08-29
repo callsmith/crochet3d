@@ -76,10 +76,16 @@ export function computePositions(graph, stuffing = 0.5) {
    roundsToPinch.add(0);
   }
 
+  layoutFoundationRound(rounds[0], effectiveRadii[0]);
+  if (roundsToPinch.has(0)) {
+    // Pinch the magic ring before later rounds are placed so the first worked
+    // stitches anchor to the tight center they come from in real crochet.
+    pinchRound(rounds[0], PINCH_ROUND_RADIUS_FACTOR);
+    roundsToPinch.delete(0);
+  }
+
   // FO pinches are applied after layout so they close tightly even when
   // parent-driven relaxation would otherwise keep a larger radius.
-
-  layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
