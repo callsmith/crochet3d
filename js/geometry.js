@@ -19,9 +19,10 @@
  *      forcing the round back into a perfect circle.
  */
 
-import { getStitchGeometry } from './model.js';
+import { StitchType, getStitchGeometry } from './model.js';
 
 const STITCH_WIDTH_SCALE = 0.8;
+const MIN_CIRCUMFERENCE = getStitchGeometry(StitchType.SC).width * STITCH_WIDTH_SCALE;
 const ROUND_RELAX_ITERATIONS = 48;
 const TETHER_PULL = 0.16;
 const TARGET_RADIUS_PULL = 0.12;
@@ -54,7 +55,7 @@ export function computePositions(graph, stuffing = 0.5) {
    const circumference = round.reduce((sum, stitch) => {
      return sum + getStitchGeometry(stitch.type).width * STITCH_WIDTH_SCALE;
    }, 0);
-   return Math.max(circumference, STITCH_WIDTH_SCALE) / (2 * Math.PI);
+   return Math.max(circumference, MIN_CIRCUMFERENCE) / (2 * Math.PI);
   });
 
   // Barrel radius = max natural radius across all rounds
@@ -133,7 +134,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, verticalStep, st
 
    for (let i = 0; i < points.length; i++) {
      const j = (i + 1) % points.length;
-     relaxPair(points[i], points[j], desiredNeighborDistances[i], i, points.length);
+     relaxPair(points[i], points[j], desiredNeighborDistances[i], i + 0.5, points.length);
    }
 
    const centroid = computeCentroid(points);
