@@ -37,7 +37,7 @@ const PLANAR_FALLBACK_RATIO = 0.2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
-// Magic rings and FO'd final rounds are essentially a point in real life.
+// Magic rings and FO pinches are essentially a point in real life.
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
@@ -68,13 +68,16 @@ export function computePositions(graph, stuffing = 0.5) {
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
 
-  // Magic rings and FO'd final rounds are essentially a point in real life.
+  // Magic rings are essentially a point in real life.
   const isMagicRing = rounds[0].every(s => s.type === StitchType.MR);
   if (isMagicRing) {
-   effectiveRadii[0] *= PINCH_ROUND_RADIUS_FACTOR;
+   effectiveRadii[0] = Math.min(effectiveRadii[0], naturalRadii[0]) * PINCH_ROUND_RADIUS_FACTOR;
   }
-  if (numRounds > 1) {
-   effectiveRadii[numRounds - 1] *= PINCH_ROUND_RADIUS_FACTOR;
+
+  // FO markers pinch specific completed rounds.
+  for (const roundIndex of graph.pinchedRoundIndices ?? []) {
+   if (roundIndex < 0 || roundIndex >= numRounds) continue;
+   effectiveRadii[roundIndex] = Math.min(effectiveRadii[roundIndex], naturalRadii[roundIndex]) * PINCH_ROUND_RADIUS_FACTOR;
   }
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);

@@ -15,7 +15,7 @@ server.
 
 ## Features
 
-* Parses rounds using common amigurumi notation (`MR`, `SC`, `INC`, `DEC`,
+* Parses rounds using common amigurumi notation (`MR`, `SC`, `INC`, `DEC`, `FO`,
   `SCTOG`, parenthetical repetition)
 * Builds a complete **stitch graph** with parent / child and same-round
   neighbor relationships
@@ -38,6 +38,7 @@ R3: (SC, INC) x6
 R4: (SC 2, INC) x6
 R5: SC 24
 R6: (SC 2, DEC) x6
+R7: FO
 ```
 
 | Token | Description |
@@ -47,6 +48,7 @@ R6: (SC 2, DEC) x6
 | `SC n` | `n` consecutive Single Crochets |
 | `INC` | Increase — 1 parent, 2 children |
 | `DEC` / `SCTOG` | Decrease — 2 parents, 1 child |
+| `FO` | Finish Off — pinches the previous worked round closed |
 | `(…) xN` | Repeat the group N times |
 | `R1:` prefix | Optional round label; parsed but not required |
 | `//` or `#` lines | Comments — ignored |
@@ -100,7 +102,7 @@ Each `Stitch` node carries:
 | Field | Description |
 |-------|-------------|
 | `id` | Unique integer |
-| `type` | `MR` / `SC` / `INC` / `DEC` |
+| `type` | `MR` / `SC` / `INC` / `DEC` / `FO` |
 | `round` | 0-based round index |
 | `indexInRound` | 0-based position within the round |
 | `parents[]` | Stitches in the previous round worked into |
