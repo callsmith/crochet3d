@@ -168,8 +168,9 @@ function showWarnings(msgs) {
 }
 
 function showStats(graph) {
+  const edges = graph.edges;
   const roundCounts = graph.rounds.map((r, i) => `R${i + 1}: ${r.length}st`).join('  ');
-  statsBox.textContent = `${graph.rounds.length} rounds · ${graph.totalStitches} stitches · ${graph.edges.length} edges\n${roundCounts}`;
+  statsBox.textContent = `${graph.rounds.length} rounds · ${graph.totalStitches} stitches · ${edges.length} edges\n${roundCounts}`;
 }
 
 // ── Fallback default pattern ───────────────────────────────────────────────────

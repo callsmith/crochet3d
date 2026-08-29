@@ -36,7 +36,7 @@
  * occurs.
  */
 
-import { Stitch, StitchType, StitchGraph } from './model.js';
+import { StitchType, StitchGraph } from './model.js';
 
 /**
  * Build a StitchGraph from a parsed pattern.
@@ -76,7 +76,7 @@ export function buildGraph(parsed) {
       if (ringSize === 0) ringSize = ops.length;
 
       for (let i = 0; i < ringSize; i++) {
-        const s = new Stitch({ type: StitchType.MR, round: ri, indexInRound: i });
+        const s = graph.createStitch({ type: StitchType.MR, round: ri, indexInRound: i });
         currentRound.push(s);
       }
 
@@ -97,7 +97,7 @@ export function buildGraph(parsed) {
             }
             cursor++;
 
-            const s = new Stitch({ type: StitchType.SC, round: ri, indexInRound: currentRound.length });
+            const s = graph.createStitch({ type: StitchType.SC, round: ri, indexInRound: currentRound.length });
             link(s, [parent]);
             currentRound.push(s);
             break;
@@ -111,11 +111,11 @@ export function buildGraph(parsed) {
             cursor++;
 
             // Two children share one parent
-            const s1 = new Stitch({ type: StitchType.INC, round: ri, indexInRound: currentRound.length });
+            const s1 = graph.createStitch({ type: StitchType.INC, round: ri, indexInRound: currentRound.length });
             link(s1, [parent]);
             currentRound.push(s1);
 
-            const s2 = new Stitch({ type: StitchType.INC, round: ri, indexInRound: currentRound.length });
+            const s2 = graph.createStitch({ type: StitchType.INC, round: ri, indexInRound: currentRound.length });
             link(s2, [parent]);
             currentRound.push(s2);
             break;
@@ -134,7 +134,7 @@ export function buildGraph(parsed) {
             }
             cursor++;
 
-            const s = new Stitch({ type: StitchType.DEC, round: ri, indexInRound: currentRound.length });
+            const s = graph.createStitch({ type: StitchType.DEC, round: ri, indexInRound: currentRound.length });
             link(s, [p1, p2]);
             currentRound.push(s);
             break;
@@ -145,7 +145,7 @@ export function buildGraph(parsed) {
             warnings.push(`R${roundNumber}: MR found in non-first round; treating as SC.`);
             const parent = prevRound[cursor % prevRound.length];
             cursor++;
-            const s = new Stitch({ type: StitchType.SC, round: ri, indexInRound: currentRound.length });
+            const s = graph.createStitch({ type: StitchType.SC, round: ri, indexInRound: currentRound.length });
             link(s, [parent]);
             currentRound.push(s);
             break;

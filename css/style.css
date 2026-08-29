@@ -69,7 +69,6 @@ header .subtitle {
   min-width: 260px;
   display: flex;
   flex-direction: column;
-  gap: 0;
   background: var(--surface);
   border-right: 1px solid var(--surface2);
   overflow-y: auto;

@@ -131,13 +131,15 @@ export function createRenderer(canvas, labelContainer) {
     // Clear previous scene objects
     if (sceneGroup) {
       scene.remove(sceneGroup);
-      disposGroup(sceneGroup);
+      disposeGroup(sceneGroup);
     }
     sceneGroup = new THREE.Group();
 
     // ── Node spheres ────────────────────────────────────────────────────────
     if (showNodes) {
+      // One shared geometry for all node spheres; disposed via disposeGroup
       const geomNode = new THREE.SphereGeometry(NODE_RADIUS, 8, 6);
+      sceneGroup.userData._sharedGeoms = [geomNode];
       for (const stitch of graph.allStitches) {
         const mat = new THREE.MeshLambertMaterial({ color: nodeColor(stitch.type) });
         const mesh = new THREE.Mesh(geomNode, mat);
@@ -202,7 +204,7 @@ export function createRenderer(canvas, labelContainer) {
     controls.dispose();
     webgl.dispose();
     if (css2d.domElement.parentNode) css2d.domElement.parentNode.removeChild(css2d.domElement);
-    if (sceneGroup) disposGroup(sceneGroup);
+    if (sceneGroup) disposeGroup(sceneGroup);
   }
 
   return { render, resetCamera, dispose };
@@ -252,8 +254,12 @@ function fitCamera(graph, camera, controls) {
   controls.update();
 }
 
-/** Recursively dispose Three.js geometries and materials. */
-function disposGroup(group) {
+/** Recursively dispose Three.js geometries and materials, including shared geometries. */
+function disposeGroup(group) {
+  // Dispose any shared geometries stored by the render function
+  if (group.userData._sharedGeoms) {
+    for (const g of group.userData._sharedGeoms) g.dispose();
+  }
   group.traverse(obj => {
     if (obj.geometry) obj.geometry.dispose();
     if (obj.material) {

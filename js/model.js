@@ -21,14 +21,11 @@ export const StitchType = {
   DEC: 'DEC',  // Decrease / SCTOG — 2 parents → 1 child
 };
 
-/** Monotonically increasing stitch ID. Reset per graph build. */
-let _nextId = 0;
-
 /**
  * A single stitch node in the stitch graph.
  *
  * Core fields (topology):
- *   id            — unique integer identifier
+ *   id            — unique integer identifier (scoped to the owning StitchGraph)
  *   type          — StitchType value
  *   round         — 0-based round index
  *   indexInRound  — 0-based position within the round (worked order)
@@ -41,8 +38,8 @@ let _nextId = 0;
  *   position      — { x, y, z } world position
  */
 export class Stitch {
-  constructor({ type, round, indexInRound }) {
-    this.id           = _nextId++;
+  constructor({ id, type, round, indexInRound }) {
+    this.id           = id;
     this.type         = type;
     this.round        = round;
     this.indexInRound = indexInRound;
@@ -71,8 +68,16 @@ export class Stitch {
  */
 export class StitchGraph {
   constructor() {
-    this.rounds = [];  // Stitch[][]
-    _nextId = 0;
+    this.rounds  = [];  // Stitch[][]
+    this._nextId = 0;   // Per-instance ID counter — safe for concurrent graph builds
+  }
+
+  /**
+   * Create a new Stitch owned by this graph.
+   * Use this instead of `new Stitch(…)` directly so IDs remain unique per graph.
+   */
+  createStitch({ type, round, indexInRound }) {
+    return new Stitch({ id: this._nextId++, type, round, indexInRound });
   }
 
   get totalStitches() {
