@@ -67,7 +67,10 @@ export function createRenderer(canvas, labelContainer) {
     webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
   } catch (e) {
     try {
-      webgl = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
+      // Force a WebGL1 context explicitly for older / restricted browsers.
+      const ctx = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!ctx) throw new Error('no webgl');
+      webgl = new THREE.WebGLRenderer({ canvas, context: ctx, antialias: false });
     } catch (e2) {
       throw new Error('WebGL is not supported or is disabled in this browser. Please enable hardware acceleration.');
     }

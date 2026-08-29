@@ -56,7 +56,7 @@ const BUILTIN_EXAMPLES = [
   { name: 'Localized Bumps Test',        pattern: 'R1: MR 6\nR2: INC x6\nR3: SC 12\nR4: SC 5, INC 3, SC 4\nR5: SC 5, INC 3, SC 7\nR6: SC 18\nR7: SC 18\nR8: (SC, DEC) x6\nR9: DEC x6' },
   { name: 'Localized Decrease Test',     pattern: 'R1: MR 6\nR2: INC x6\nR3: (SC, INC) x6\nR4: SC 18\nR5: SC 4, DEC 3, SC 5\nR6: SC 12\nR7: (SC, DEC) x4\nR8: DEC x4' },
   { name: 'Cylinder / Tube',             pattern: 'R1: MR 8\nR2: INC x8\nR3: SC 16\nR4: SC 16\nR5: SC 16\nR6: SC 16\nR7: SC 16\nR8: SC 16\nR9: DEC x8' },
-  { name: 'Simple SC Only',             pattern: 'R1: MR 6\nR2: SC 6\nR3: SC 6\nR4: SC 6\nR5: SC 6' },
+  { name: 'Simple SC Only',              pattern: 'R1: MR 6\nR2: SC 6\nR3: SC 6\nR4: SC 6\nR5: SC 6' },
 ];
 
 function loadExamples(examples) {
