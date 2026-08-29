@@ -166,7 +166,9 @@ To add a new stitch type (e.g. `HDC`, `DC`, `CH`):
 2. **`js/parser.js`** — add the keyword to `STITCH_ALIASES`.
 3. **`js/builder.js`** — add a `case` in the `switch` block with the correct
    parent-consumption and child-production rules.
-4. **`js/renderer.js`** — optionally add a colour in `COLORS` and update
+4. **`js/geometry.js`** — add stitch width/height values if the new stitch should
+   occupy a different round spacing or parent-edge length.
+5. **`js/renderer.js`** — optionally add a colour in `COLORS` and update
    `nodeColor()`.
 
 No other files need to change.
