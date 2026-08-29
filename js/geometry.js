@@ -22,7 +22,8 @@
 import { StitchType, getStitchGeometry } from './model.js';
 
 const STITCH_WIDTH_SCALE = 0.8;
-const MIN_CIRCUMFERENCE = getStitchGeometry(StitchType.SC).width * STITCH_WIDTH_SCALE;
+// A round should never collapse below roughly one stitch-width of circumference.
+const MIN_ROUND_CIRCUMFERENCE = getStitchGeometry(StitchType.SC).width * STITCH_WIDTH_SCALE;
 const ROUND_RELAX_ITERATIONS = 48;
 const TETHER_PULL = 0.16;
 const TARGET_RADIUS_PULL = 0.12;
@@ -56,7 +57,7 @@ export function computePositions(graph, stuffing = 0.5) {
    const circumference = round.reduce((sum, stitch) => {
      return sum + getStitchGeometry(stitch.type).width * STITCH_WIDTH_SCALE;
    }, 0);
-   return Math.max(circumference, MIN_CIRCUMFERENCE) / (2 * Math.PI);
+   return Math.max(circumference, MIN_ROUND_CIRCUMFERENCE) / (2 * Math.PI);
   });
 
   // Barrel radius = max natural radius across all rounds
@@ -230,17 +231,19 @@ function relaxPair(a, b, targetDistance, fallbackAngleIndex, fallbackAngleCount)
 }
 
 function computeCentroid(points) {
-  if (points.length === 0) return { x: 0, z: 0 };
+  if (points.length === 0) return { x: 0, y: 0, z: 0 };
 
   const sum = points.reduce((acc, point) => {
    const pos = point.position ?? point;
    acc.x += pos.x;
+   acc.y += pos.y ?? 0;
    acc.z += pos.z;
    return acc;
-  }, { x: 0, z: 0 });
+  }, { x: 0, y: 0, z: 0 });
 
   return {
    x: sum.x / points.length,
+   y: sum.y / points.length,
    z: sum.z / points.length,
   };
 }
@@ -267,7 +270,10 @@ function normalizeScaleToStitchHeights(graph) {
   if (ratios.length === 0) return;
 
   ratios.sort((a, b) => a - b);
-  const medianRatio = ratios[Math.floor(ratios.length / 2)];
+  const mid = Math.floor(ratios.length / 2);
+  const medianRatio = ratios.length % 2 === 0
+    ? (ratios[mid - 1] + ratios[mid]) / 2
+    : ratios[mid];
   if (medianRatio <= MIN_DIRECTION_LENGTH) return;
 
   const scale = 1 / medianRatio;
