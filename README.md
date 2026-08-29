@@ -102,13 +102,14 @@ Each `Stitch` node carries:
 | Field | Description |
 |-------|-------------|
 | `id` | Unique integer |
-| `type` | `MR` / `SC` / `INC` / `DEC` / `FO` |
+| `type` | `MR` / `SC` / `INC` / `DEC` |
 | `round` | 0-based round index |
 | `indexInRound` | 0-based position within the round |
 | `parents[]` | Stitches in the previous round worked into |
 | `children[]` | Stitches in the next round that work into this |
 | `prevInRound` / `nextInRound` | Circular neighbor chain |
 | `position` | `{ x, y, z }` — set by geometry.js |
+| `pinchedRoundIndices` (graph) | Set of 0-based round indices marked by `FO` to pinch closed |
 
 `INC` → 1 parent, 2 children.  `DEC` → 2 parents, 1 child.  The graph
 supports any number of parents/children to accommodate future stitch types.
