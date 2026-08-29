@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crochet 3D — Pattern Wireframe Visualizer</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────────── -->
+  <header>
+    <h1>🧶 Crochet 3D</h1>
+    <span class="subtitle">Amigurumi pattern → interactive 3D wireframe</span>
+  </header>
+
+  <!-- ── Main layout ─────────────────────────────────────────────────────────── -->
+  <div id="main">
+
+    <!-- ── Left panel ────────────────────────────────────────────────────────── -->
+    <div id="left-panel">
+
+      <!-- Example selector -->
+      <div class="panel-section">
+        <label>Examples</label>
+        <select id="example-select">
+          <option value="" disabled selected>Choose an example…</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Pattern input -->
+      <div class="panel-section">
+        <label>Pattern</label>
+        <textarea id="pattern-input" spellcheck="false" placeholder="R1: MR 6
+R2: INC x6
+R3: (SC, INC) x6
+…"></textarea>
+        <span class="hint">Ctrl+Enter to render</span>
+      </div>
+
+      <button class="btn btn-primary" id="render-btn">▶ Render</button>
+
+      <div class="divider"></div>
+
+      <!-- Stuffing slider -->
+      <div class="panel-section">
+        <label>Stuffing Factor</label>
+        <div class="slider-row">
+          <span style="font-size:11px;color:var(--text-muted)">Flat</span>
+          <input type="range" id="stuffing-slider" min="0" max="1" step="0.01" value="0.5" />
+          <span id="stuffing-value">0.5</span>
+          <span style="font-size:11px;color:var(--text-muted)">Full</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Debug toggles -->
+      <div class="panel-section">
+        <label>Debug Toggles</label>
+        <div class="toggles">
+          <label class="toggle-row">
+            <input type="checkbox" id="chk-nodes" checked />
+            Nodes
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="chk-edges" checked />
+            Edges
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="chk-labels" />
+            Stitch labels
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="chk-round-labels" />
+            Round labels
+          </label>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Legend -->
+      <div class="panel-section">
+        <label>Legend</label>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#888899"></div> MR (magic ring)
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#ccccdd"></div> SC (single crochet)
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#44dd77"></div> INC (increase)
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#ff6644"></div> DEC (decrease)
+          </div>
+          <div class="legend-item">
+            <div class="legend-line" style="background:#4488ff"></div> Parent–child edge
+          </div>
+          <div class="legend-item">
+            <div class="legend-line" style="background:#ffcc00"></div> Same-round neighbor
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Messages -->
+      <div id="error-box"></div>
+      <div id="warning-box"></div>
+
+      <!-- Stats -->
+      <div id="stats-box"></div>
+
+    </div><!-- /left-panel -->
+
+    <!-- ── 3D Viewport ────────────────────────────────────────────────────────── -->
+    <div id="viewport">
+      <canvas id="three-canvas"></canvas>
+      <div id="label-container"></div>
+
+      <div id="viewport-toolbar">
+        <button class="btn btn-secondary" id="reset-camera-btn" title="Reset camera">⟳ Reset</button>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+</div><!-- /app -->
+
+<!-- Load app as ES module (Three.js is imported from CDN inside renderer.js) -->
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>
