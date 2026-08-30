@@ -219,7 +219,8 @@ function renderWithRetry(graph, options) {
   try {
     rendererInstance.render(graph, options);
     return true;
-  } catch (_) {
+  } catch (e) {
+    console.warn('Render attempt failed; retrying after renderer reset.', e);
     resetRenderer();
   }
 
