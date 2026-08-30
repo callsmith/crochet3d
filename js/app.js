@@ -155,6 +155,7 @@ function doRender() {
 
 function reRender() {
   if (!currentGraph) return;
+  clearError();
   const stuffing = parseFloat(stuffingSlider.value);
   computePositions(currentGraph, stuffing);
   if (!renderWithRetry(currentGraph, getOptions())) return;
@@ -172,10 +173,14 @@ function getOptions() {
 // ── Message helpers ────────────────────────────────────────────────────────────
 
 function clearMessages() {
-  errorBox.textContent   = '';
-  errorBox.style.display = 'none';
+  clearError();
   warningBox.textContent   = '';
   warningBox.style.display = 'none';
+}
+
+function clearError() {
+  errorBox.textContent   = '';
+  errorBox.style.display = 'none';
 }
 
 function showError(msg) {
