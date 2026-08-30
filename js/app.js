@@ -221,7 +221,7 @@ function resetRenderer() {
 }
 
 function renderWithRetry(graph, options) {
-  if (!rendererInstance && !ensureRenderer()) return false;
+  if (!ensureRenderer()) return false;
 
   try {
     rendererInstance.render(graph, options);
