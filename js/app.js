@@ -46,11 +46,7 @@ let currentGraph     = null;
 // Wrap in try/catch so a WebGL failure does not abort the rest of module
 // initialisation (the dropdown, event listeners, and fetch all live below this
 // line and would be silently skipped if the exception were left uncaught).
-try {
-  rendererInstance = createRenderer(canvas, labelContainer);
-} catch (e) {
-  showError(`3D renderer unavailable: ${e.message}`);
-}
+ensureRenderer();
 
 // ── Load example patterns ──────────────────────────────────────────────────────
 
@@ -122,8 +118,7 @@ patternInput.addEventListener('keydown', e => {
 function doRender() {
   clearMessages();
 
-  if (!rendererInstance) {
-    showError('WebGL renderer is not available. Please enable hardware acceleration in your browser settings.');
+  if (!ensureRenderer()) {
     return;
   }
 
@@ -152,7 +147,7 @@ function doRender() {
   computePositions(graph, stuffing);
 
   // 4. Render
-  rendererInstance.render(graph, getOptions());
+  if (!renderWithRetry(graph, getOptions())) return;
 
   // 5. Stats
   showStats(graph);
@@ -162,7 +157,7 @@ function reRender() {
   if (!currentGraph) return;
   const stuffing = parseFloat(stuffingSlider.value);
   computePositions(currentGraph, stuffing);
-  rendererInstance.render(currentGraph, getOptions());
+  renderWithRetry(currentGraph, getOptions());
 }
 
 function getOptions() {
@@ -197,6 +192,47 @@ function showStats(graph) {
   const edges = graph.edges;
   const roundCounts = graph.rounds.map((r, i) => `R${i + 1}: ${r.length}st`).join('  ');
   statsBox.textContent = `${graph.rounds.length} rounds · ${graph.totalStitches} stitches · ${edges.length} edges\n${roundCounts}`;
+}
+
+function ensureRenderer() {
+  if (rendererInstance) return true;
+  try {
+    rendererInstance = createRenderer(canvas, labelContainer);
+    return true;
+  } catch (e) {
+    showError(`3D renderer unavailable: ${e.message}`);
+    return false;
+  }
+}
+
+function resetRenderer() {
+  if (!rendererInstance) return;
+  try {
+    rendererInstance.dispose();
+  } catch (_) {
+    // Ignore disposal errors; we'll still drop the instance.
+  }
+  rendererInstance = null;
+}
+
+function renderWithRetry(graph, options) {
+  try {
+    rendererInstance.render(graph, options);
+    return true;
+  } catch (_) {
+    resetRenderer();
+  }
+
+  if (!ensureRenderer()) return false;
+
+  try {
+    rendererInstance.render(graph, options);
+    return true;
+  } catch (e) {
+    showError(`Render failed: ${e.message}`);
+    resetRenderer();
+    return false;
+  }
 }
 
 // ── Fallback default pattern ───────────────────────────────────────────────────
