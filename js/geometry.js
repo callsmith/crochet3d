@@ -62,14 +62,16 @@ export function computePositions(graph, stuffing = 0.5) {
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
 
-  layoutFoundationRound(rounds[0], foundationRadius(effectiveRadii));
+  const radii = shiftedRadii(effectiveRadii);
+
+  layoutFoundationRound(rounds[0], radii[0]);
 
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
+   const relaxed = layoutRoundFromParents(round, prevRound, radii[ri - 1], radii[ri]);
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -93,14 +95,13 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
+function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius) {
   const prevCentroid = computeCentroid(prevRound);
+  const radialDelta = targetRadius - prevTargetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
-   const parentRadius = distance2d(parentCenter, prevCentroid);
-   const radialDelta = targetRadius - parentRadius;
    const planarOffset = clamp(
      radialDelta,
      -targetHeight * MAX_PLANAR_STRETCH_RATIO,
@@ -183,6 +184,12 @@ function foundationRadius(effectiveRadii) {
     Math.min(naturalFoundation, nextRound) * MAGIC_RING_RADIUS_RATIO,
     MIN_MAGIC_RING_RADIUS,
   );
+}
+
+function shiftedRadii(effectiveRadii) {
+  const baseRadius = foundationRadius(effectiveRadii);
+  const firstRadius = effectiveRadii[0] ?? 0;
+  return effectiveRadii.map(radius => Math.max(baseRadius + (radius - firstRadius), MIN_MAGIC_RING_RADIUS));
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
