@@ -37,13 +37,6 @@ const PLANAR_FALLBACK_RATIO = 0.2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
-// Magic rings and FO pinches are essentially a point in real life.
-const PINCH_ROUND_RADIUS_FACTOR = 0.05;
-// A first round that does not increase much from the magic ring should stay
-// much tighter than one that doubles the ring immediately.
-const PINCH_FULL_EXPANSION_RATIO = 2.0;
-const PINCH_EXPANSION_MIN = 0.35;
-const PINCH_EXPANSION_MAX = 1.0;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
 /**
@@ -73,50 +66,17 @@ export function computePositions(graph, stuffing = 0.5) {
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
 
-  const roundsToPinch = new Set(graph.pinchedRoundIndices ?? []);
-
-  // Magic rings are essentially a point in real life.
-  const isMagicRing = rounds[0].every(s => s.type === StitchType.MR);
-  if (isMagicRing) {
-   roundsToPinch.add(0);
-  }
-
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
-  if (roundsToPinch.has(0)) {
-    // Pinch the magic ring before later rounds are placed so the first worked
-    // stitches anchor to the tight center they come from in real crochet.
-    pinchRound(rounds[0], PINCH_ROUND_RADIUS_FACTOR);
-    roundsToPinch.delete(0);
-  }
-
-  // FO pinches are applied after layout so they close tightly even when
-  // parent-driven relaxation would otherwise keep a larger radius.
 
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   // Rounds immediately after a pinched round (MR or FO) use a reduced
-   // effective target radius so the SCs emerging from the tight center
-   // do not immediately spring out to full barrel radius.
-   const prevIsPinched = prevRound.every(s => s.type === StitchType.MR)
-     || roundsToPinch.has(ri - 1);
-   const relaxed = layoutRoundFromParents(
-     round,
-     prevRound,
-     effectiveRadii[ri],
-     stuffing,
-     prevIsPinched,
-   );
+   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
-  }
-
-  for (const roundIndex of roundsToPinch) {
-   if (roundIndex < 0 || roundIndex >= numRounds) continue;
-   pinchRound(rounds[roundIndex], PINCH_ROUND_RADIUS_FACTOR);
   }
 
   normalizeScaleToStitchHeights(graph);
@@ -137,17 +97,15 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromPinched = false) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   const prevCentroid = computeCentroid(prevRound);
-  const effectiveTargetRadius = isFromPinched
-   ? pinnedTargetRadius(round, prevRound, targetRadius, stuffing)
-   : targetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
    const verticalStep = stitchVerticalStep(targetHeight, stuffing);
-   const planarOffset = stitchPlanarOffset(stitch, stuffing);
+   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
+   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -188,7 +146,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
    const avgRadius = average(points.map(p => distance2d(p, centroid)));
    if (avgRadius > MIN_DIRECTION_LENGTH) {
      const pull = TARGET_RADIUS_PULL + stuffing * 0.08;
-     const scale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * pull;
+     const scale = 1 + ((targetRadius - avgRadius) / avgRadius) * pull;
      for (const point of points) {
        const prevX = point.x;
        const prevZ = point.z;
@@ -204,13 +162,13 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
   const centroid = computeCentroid(points);
   const avgRadius = average(points.map(p => distance2d(p, centroid)));
   if (avgRadius > MIN_DIRECTION_LENGTH) {
-   const radiusError = Math.abs(effectiveTargetRadius - avgRadius) / avgRadius;
-   if (radiusError > FINAL_RADIUS_CORRECTION_THRESHOLD) {
-     const finalScale = 1 + ((effectiveTargetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
-     for (const point of points) {
-       point.x = centroid.x + (point.x - centroid.x) * finalScale;
-       point.z = centroid.z + (point.z - centroid.z) * finalScale;
-     }
+   const radiusError = Math.abs(targetRadius - avgRadius) / avgRadius;
+   if (radiusError <= FINAL_RADIUS_CORRECTION_THRESHOLD) return points;
+
+   const finalScale = 1 + ((targetRadius - avgRadius) / avgRadius) * FINAL_RADIUS_CORRECTION_PULL;
+   for (const point of points) {
+     point.x = centroid.x + (point.x - centroid.x) * finalScale;
+     point.z = centroid.z + (point.z - centroid.z) * finalScale;
    }
   }
 
@@ -328,38 +286,6 @@ function normalizeScaleToStitchHeights(graph) {
 
 function stitchVerticalStep(targetHeight, stuffing) {
   return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
-}
-
-function stitchPlanarOffset(stitch, stuffing) {
-  const targetHeight = getStitchGeometry(stitch.type).height;
-  const verticalStep = stitchVerticalStep(targetHeight, stuffing);
-  const planarSquared = targetHeight ** 2 - verticalStep ** 2;
-  return Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
-}
-
-function pinnedTargetRadius(round, prevRound, targetRadius, stuffing) {
-  // Cap the effective radius for the first round off a pinched center (MR or
-  // FO) so the SCs stay close to the tight anchor rather than springing to the
-  // full barrel radius.  How close depends on how much the round expands: a
-  // round that doubles the stitch count gets more room than one that stays flat.
-  const expansionRatio = round.length / Math.max(prevRound.length, 1);
-  const expansionFactor = Math.max(
-    PINCH_EXPANSION_MIN,
-    Math.min(PINCH_EXPANSION_MAX, expansionRatio / PINCH_FULL_EXPANSION_RATIO),
-  );
-  return Math.min(
-    targetRadius,
-    average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))) * expansionFactor,
-  );
-}
-
-function pinchRound(round, radiusFactor) {
-  if (round.length === 0) return;
-  const centroid = computeCentroid(round);
-  for (const stitch of round) {
-    stitch.position.x = centroid.x + (stitch.position.x - centroid.x) * radiusFactor;
-    stitch.position.z = centroid.z + (stitch.position.z - centroid.z) * radiusFactor;
-  }
 }
 
 function centerVertically(graph) {
