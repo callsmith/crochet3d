@@ -157,7 +157,7 @@ function reRender() {
   if (!currentGraph) return;
   const stuffing = parseFloat(stuffingSlider.value);
   computePositions(currentGraph, stuffing);
-  renderWithRetry(currentGraph, getOptions());
+  if (!renderWithRetry(currentGraph, getOptions())) return;
 }
 
 function getOptions() {
