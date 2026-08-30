@@ -71,7 +71,7 @@ export function computePositions(graph, stuffing = 0.5) {
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, radii[ri - 1], radii[ri]);
+   const relaxed = layoutRoundFromParents(round, prevRound, radii[ri - 1], radii[ri], stuffing);
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -95,7 +95,7 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius) {
+function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius, stuffing) {
   const prevCentroid = computeCentroid(prevRound);
   const radialDelta = targetRadius - prevTargetRadius;
   const anchors = round.map((stitch, index) => {
