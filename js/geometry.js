@@ -107,7 +107,7 @@ function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius
      -targetHeight * MAX_PLANAR_STRETCH_RATIO,
      targetHeight * MAX_PLANAR_STRETCH_RATIO,
    );
-   const verticalStep = stitchRise(targetHeight, Math.abs(planarOffset));
+   const verticalStep = stitchRise(targetHeight, planarOffset);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -189,7 +189,16 @@ function foundationRadius(effectiveRadii) {
 function shiftedRadii(effectiveRadii) {
   const baseRadius = foundationRadius(effectiveRadii);
   const firstRadius = effectiveRadii[0] ?? 0;
-  return effectiveRadii.map(radius => Math.max(baseRadius + (radius - firstRadius), MIN_MAGIC_RING_RADIUS));
+  if (firstRadius <= MIN_DIRECTION_LENGTH) {
+    return effectiveRadii.map(() => baseRadius);
+  }
+
+  return effectiveRadii.map(radius => {
+    if (radius >= firstRadius) {
+      return baseRadius + (radius - firstRadius);
+    }
+    return Math.max(baseRadius * (radius / firstRadius), MIN_MAGIC_RING_RADIUS);
+  });
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -302,7 +311,7 @@ function normalizeScaleToStitchHeights(graph) {
 }
 
 function stitchRise(targetHeight, planarOffset) {
-  const clampedPlanar = Math.min(planarOffset, targetHeight * MAX_PLANAR_STRETCH_RATIO);
+  const clampedPlanar = Math.min(Math.abs(planarOffset), targetHeight * MAX_PLANAR_STRETCH_RATIO);
   return Math.sqrt(Math.max(targetHeight ** 2 - clampedPlanar ** 2, 0));
 }
 
