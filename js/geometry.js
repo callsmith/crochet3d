@@ -41,9 +41,9 @@ const MIN_DIRECTION_LENGTH = 1e-5;
 const PINCH_ROUND_RADIUS_FACTOR = 0.05;
 // A first round that does not increase much from the magic ring should stay
 // much tighter than one that doubles the ring immediately.
-const MAGIC_RING_FULL_EXPANSION_RATIO = 2.0;
-const MAGIC_RING_EXPANSION_MIN = 0.35;
-const MAGIC_RING_EXPANSION_MAX = 1.0;
+const PINCH_FULL_EXPANSION_RATIO = 2.0;
+const PINCH_EXPANSION_MIN = 0.35;
+const PINCH_EXPANSION_MAX = 1.0;
 const RELAX_CONVERGENCE_EPSILON = 1e-4;
 
 /**
@@ -97,12 +97,17 @@ export function computePositions(graph, stuffing = 0.5) {
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
+   // Rounds immediately after a pinched round (MR or FO) use a reduced
+   // effective target radius so the SCs emerging from the tight center
+   // do not immediately spring out to full barrel radius.
+   const prevIsPinched = prevRound.every(s => s.type === StitchType.MR)
+     || roundsToPinch.has(ri - 1);
    const relaxed = layoutRoundFromParents(
      round,
      prevRound,
      effectiveRadii[ri],
      stuffing,
-     prevRound.every(stitch => stitch.type === StitchType.MR),
+     prevIsPinched,
    );
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
@@ -132,10 +137,10 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromMagicRing = false) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFromPinched = false) {
   const prevCentroid = computeCentroid(prevRound);
-  const effectiveTargetRadius = isFromMagicRing
-   ? magicRingTargetRadius(round, prevRound, targetRadius, stuffing)
+  const effectiveTargetRadius = isFromPinched
+   ? pinnedTargetRadius(round, prevRound, targetRadius, stuffing)
    : targetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
@@ -209,7 +214,7 @@ function layoutRoundFromParents(round, prevRound, targetRadius, stuffing, isFrom
    }
   }
 
-  return isFromMagicRing ? reprojectToStitchHeight(points, round, prevRound) : points;
+  return points;
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -332,41 +337,20 @@ function stitchPlanarOffset(stitch, stuffing) {
   return Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
 }
 
-function magicRingTargetRadius(round, prevRound, targetRadius, stuffing) {
-  // prevRound is non-empty at real call sites; the divisor guard is only a
-  // defensive fallback in case a malformed graph ever reaches this path.
+function pinnedTargetRadius(round, prevRound, targetRadius, stuffing) {
+  // Cap the effective radius for the first round off a pinched center (MR or
+  // FO) so the SCs stay close to the tight anchor rather than springing to the
+  // full barrel radius.  How close depends on how much the round expands: a
+  // round that doubles the stitch count gets more room than one that stays flat.
   const expansionRatio = round.length / Math.max(prevRound.length, 1);
   const expansionFactor = Math.max(
-    MAGIC_RING_EXPANSION_MIN,
-    Math.min(MAGIC_RING_EXPANSION_MAX, expansionRatio / MAGIC_RING_FULL_EXPANSION_RATIO),
+    PINCH_EXPANSION_MIN,
+    Math.min(PINCH_EXPANSION_MAX, expansionRatio / PINCH_FULL_EXPANSION_RATIO),
   );
   return Math.min(
     targetRadius,
     average(round.map(stitch => stitchPlanarOffset(stitch, stuffing))) * expansionFactor,
   );
-}
-
-function reprojectToStitchHeight(points, round, prevRound) {
-  // The first worked round is uniquely constrained by the magic ring's pinched
-  // center. Reproject just those stitches back to their nominal height so the
-  // base stays rounded instead of stretching into a cone. This intentionally
-  // uses the post-pinch parent centers, because stitches coming from the ring
-  // should measure from the tightened anchor they are worked into.
-  return points.map((point, index) => {
-    const parentCenter = averageParentPosition(round[index], prevRound, index);
-    const dx = point.x - parentCenter.x;
-    const dy = point.y - parentCenter.y;
-    const dz = point.z - parentCenter.z;
-    const actual = Math.hypot(dx, dy, dz);
-    const target = getStitchGeometry(round[index].type).height;
-    if (actual <= MIN_DIRECTION_LENGTH || target <= 0) return point;
-    const scale = target / actual;
-    return {
-      x: parentCenter.x + dx * scale,
-      y: parentCenter.y + dy * scale,
-      z: parentCenter.z + dz * scale,
-    };
-  });
 }
 
 function pinchRound(round, radiusFactor) {
