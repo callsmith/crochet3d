@@ -53,16 +53,6 @@ export function buildGraph(parsed) {
 
   for (let ri = 0; ri < parsed.rounds.length; ri++) {
     const { roundNumber, ops } = parsed.rounds[ri];
-    const hasOnlyFO = ops.length > 0 && ops.every(op => op.type === StitchType.FO);
-    if (hasOnlyFO) {
-      if (graph.rounds.length === 0) {
-        warnings.push(`R${roundNumber}: FO appears before any stitches and was ignored.`);
-      } else {
-        graph.pinchedRoundIndices.add(graph.rounds.length - 1);
-      }
-      continue;
-    }
-
     const currentRound = [];
 
     if (ri === 0) {
@@ -158,11 +148,6 @@ export function buildGraph(parsed) {
             const s = graph.createStitch({ type: StitchType.SC, round: ri, indexInRound: currentRound.length });
             link(s, [parent]);
             currentRound.push(s);
-            break;
-          }
-
-          case StitchType.FO: {
-            warnings.push(`R${roundNumber}: FO only works as a standalone round (e.g. "R${roundNumber}: FO"); ignoring this FO.`);
             break;
           }
 

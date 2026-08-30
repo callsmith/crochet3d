@@ -13,7 +13,6 @@
  *   R5: SC 24
  *   R6: (SC 2, DEC) x6
  *   R7: SC 5, INC 3, SC 5
- *   R8: FO
  *
  * Returns an array of Round objects, one per non-empty line.
  * Each Round contains an ordered array of Op objects.
@@ -35,7 +34,6 @@ const STITCH_ALIASES = {
   INC:   StitchType.INC,
   DEC:   StitchType.DEC,
   SCTOG: StitchType.DEC,  // Treat SCTOG as DEC
-  FO:    StitchType.FO,
 };
 
 // ─── Public API ────────────────────────────────────────────────────────────────
