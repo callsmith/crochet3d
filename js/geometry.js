@@ -27,9 +27,13 @@ const MIN_ROUND_CIRCUMFERENCE = getStitchGeometry(StitchType.SC).width * STITCH_
 const ROUND_RELAX_ITERATIONS = 48;
 const TETHER_PULL = 0.16;
 const TARGET_RADIUS_PULL = 0.12;
-const MAGIC_RING_RADIUS_RATIO = 0.12;
-const MIN_MAGIC_RING_RADIUS = 1e-3;
-const MAX_PLANAR_STRETCH_RATIO = 0.98;
+// Keep most of the parent→child edge vertical while leaving enough planar run
+// for the round to expand and show localized shaping.
+const VERTICAL_STEP_BASE = 0.82;
+const VERTICAL_STEP_STUFFING_REDUCTION = 0.14;
+// When the vertical step would exceed the stitch height, retain a small planar
+// component so coincident parent/child columns can still spread into a round.
+const PLANAR_FALLBACK_RATIO = 0.2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
@@ -62,16 +66,14 @@ export function computePositions(graph, stuffing = 0.5) {
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
 
-  const radii = shiftedRadii(effectiveRadii);
-
-  layoutFoundationRound(rounds[0], radii[0]);
+  layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
   for (let ri = 1; ri < numRounds; ri++) {
    const round = rounds[ri];
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, radii[ri - 1], radii[ri], stuffing);
+   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -95,19 +97,15 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius, stuffing) {
+function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
   const prevCentroid = computeCentroid(prevRound);
-  const radialDelta = targetRadius - prevTargetRadius;
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
    const targetHeight = getStitchGeometry(stitch.type).height;
-   const planarOffset = clamp(
-     radialDelta,
-     -targetHeight * MAX_PLANAR_STRETCH_RATIO,
-     targetHeight * MAX_PLANAR_STRETCH_RATIO,
-   );
-   const verticalStep = stitchRise(targetHeight, planarOffset);
+   const verticalStep = stitchVerticalStep(targetHeight, stuffing);
+   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
+   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -175,30 +173,6 @@ function layoutRoundFromParents(round, prevRound, prevTargetRadius, targetRadius
   }
 
   return points;
-}
-
-function foundationRadius(effectiveRadii) {
-  const naturalFoundation = effectiveRadii[0] ?? 0;
-  const nextRound = effectiveRadii[1] ?? naturalFoundation;
-  return Math.max(
-    Math.min(naturalFoundation, nextRound) * MAGIC_RING_RADIUS_RATIO,
-    MIN_MAGIC_RING_RADIUS,
-  );
-}
-
-function shiftedRadii(effectiveRadii) {
-  const baseRadius = foundationRadius(effectiveRadii);
-  const firstRadius = effectiveRadii[0] ?? 0;
-  if (firstRadius <= MIN_DIRECTION_LENGTH) {
-    return effectiveRadii.map(() => baseRadius);
-  }
-
-  return effectiveRadii.map(radius => {
-    if (radius >= firstRadius) {
-      return baseRadius + (radius - firstRadius);
-    }
-    return Math.max(baseRadius * (radius / firstRadius), MIN_MAGIC_RING_RADIUS);
-  });
 }
 
 function averageParentPosition(stitch, prevRound, fallbackIndex) {
@@ -310,9 +284,8 @@ function normalizeScaleToStitchHeights(graph) {
   }
 }
 
-function stitchRise(targetHeight, planarOffset) {
-  const clampedPlanar = Math.min(Math.abs(planarOffset), targetHeight * MAX_PLANAR_STRETCH_RATIO);
-  return Math.sqrt(Math.max(targetHeight ** 2 - clampedPlanar ** 2, 0));
+function stitchVerticalStep(targetHeight, stuffing) {
+  return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
 }
 
 function centerVertically(graph) {
@@ -335,8 +308,4 @@ function distance2d(a, b) {
 function average(values) {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }
