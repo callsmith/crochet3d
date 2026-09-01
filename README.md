@@ -115,14 +115,20 @@ supports any number of parents/children to accommodate future stitch types.
 
 ## Stuffing Factor
 
-The stuffing factor (0 – 1) blends between two radius profiles:
+The stuffing factor (0 – 1) now controls two linked shape heuristics:
 
-* `0` (flat) — each round's radius is derived purely from its stitch count
-* `1` (full) — every round expands to the maximum stitch count, producing a
-  barrel/cylinder-like silhouette
+* Radius blending per round:
+  * `0` (flat) — each round follows its natural stitch-count radius
+  * `1` (full) — rounds are pulled toward the maximum radius for a fuller body
+* Stitch-path angle profile (`theta`) from pole → equator → pole:
+  * each parent→child step keeps stitch length fixed
+  * `dy = stitchLength * sin(theta)`
+  * `dr = stitchLength * cos(theta)`
+  * `theta` is generated as a smooth round-level profile using expansion /
+    equator / contraction detection, then shaped by stuffing
 
-The Y spacing between rounds also compresses as stuffing increases to keep the
-shape looking rounded rather than stretched.
+This keeps poles from becoming artificially pointy while preserving localized
+INC/DEC contouring from the parent-driven layout.
 
 ---
 
