@@ -10,12 +10,14 @@
  * localized increases/decreases.  The current layout is parent-driven:
  *
  *   1. Place the foundation ring on a circle.
- *   2. For each later round, place every stitch outward from the average of
- *      its parent stitch positions, using stitch height as the desired
- *      parent→child edge length.
- *   3. Relax same-round neighbor distances so the round closes smoothly while
+ *   2. Build a smooth pole→equator→pole theta profile across rounds.
+ *   3. For each later round, resolve each stitch length into
+ *      vertical/horizontal components:
+ *        dy = stitchLength * sin(theta), dr = stitchLength * cos(theta).
+ *      Then place every stitch outward from the average of its parent positions.
+ *   4. Relax same-round neighbor distances so the round closes smoothly while
  *      retaining local deformations from the parent topology.
- *   4. Blend the average radius toward a stuffed / barrel profile without
+ *   5. Blend the average radius toward a stuffed / barrel profile without
  *      forcing the round back into a perfect circle.
  */
 
@@ -27,13 +29,14 @@ const MIN_ROUND_CIRCUMFERENCE = getStitchGeometry(StitchType.SC).width * STITCH_
 const ROUND_RELAX_ITERATIONS = 48;
 const TETHER_PULL = 0.16;
 const TARGET_RADIUS_PULL = 0.12;
-// Keep most of the parent→child edge vertical while leaving enough planar run
-// for the round to expand and show localized shaping.
-const VERTICAL_STEP_BASE = 0.82;
-const VERTICAL_STEP_STUFFING_REDUCTION = 0.14;
-// When the vertical step would exceed the stitch height, retain a small planar
-// component so coincident parent/child columns can still spread into a round.
-const PLANAR_FALLBACK_RATIO = 0.2;
+// Theta profile controls stitch direction from pole→equator→pole.
+// Exposed for quick tuning while visually testing patterns.
+const THETA_MAX_ANGLE_FLAT_DEGREES = 58;
+const THETA_MAX_ANGLE_FULL_DEGREES = 90;
+const THETA_RAMP_POWER_FLAT = 1.6;
+const THETA_RAMP_POWER_FULL = 0.95;
+const THETA_DELTA_THRESHOLD_RATIO = 0.03;
+const THETA_SMOOTHING_PASSES = 2;
 const FINAL_RADIUS_CORRECTION_THRESHOLD = 0.1;
 const FINAL_RADIUS_CORRECTION_PULL = 0.35;
 const MIN_DIRECTION_LENGTH = 1e-5;
@@ -65,6 +68,7 @@ export function computePositions(graph, stuffing = 0.5) {
 
   // Effective radius per round blends natural ↔ barrel
   const effectiveRadii = naturalRadii.map(r => r * (1 - stuffing) + maxRadius * stuffing);
+  const thetaByRound = buildThetaProfile(effectiveRadii, stuffing);
 
   layoutFoundationRound(rounds[0], effectiveRadii[0]);
 
@@ -73,7 +77,7 @@ export function computePositions(graph, stuffing = 0.5) {
    const prevRound = rounds[ri - 1];
    if (round.length === 0) continue;
 
-   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], stuffing);
+   const relaxed = layoutRoundFromParents(round, prevRound, effectiveRadii[ri], thetaByRound[ri], stuffing);
    for (let si = 0; si < round.length; si++) {
      round[si].position = relaxed[si];
    }
@@ -97,15 +101,14 @@ function layoutFoundationRound(round, radius) {
   }
 }
 
-function layoutRoundFromParents(round, prevRound, targetRadius, stuffing) {
+function layoutRoundFromParents(round, prevRound, targetRadius, theta, stuffing) {
   const prevCentroid = computeCentroid(prevRound);
   const anchors = round.map((stitch, index) => {
    const parentCenter = averageParentPosition(stitch, prevRound, index);
    const direction = outwardDirection(parentCenter, prevCentroid, round.length, index);
-   const targetHeight = getStitchGeometry(stitch.type).height;
-   const verticalStep = stitchVerticalStep(targetHeight, stuffing);
-   const planarSquared = targetHeight ** 2 - verticalStep ** 2;
-   const planarOffset = Math.sqrt(planarSquared > 0 ? planarSquared : targetHeight ** 2 * PLANAR_FALLBACK_RATIO);
+   const stitchLength = getStitchGeometry(stitch.type).height;
+   const verticalStep = stitchLength * Math.sin(theta);
+   const planarOffset = stitchLength * Math.cos(theta);
    return {
      x: parentCenter.x + direction.x * planarOffset,
      y: parentCenter.y + verticalStep,
@@ -284,10 +287,6 @@ function normalizeScaleToStitchHeights(graph) {
   }
 }
 
-function stitchVerticalStep(targetHeight, stuffing) {
-  return targetHeight * (VERTICAL_STEP_BASE - stuffing * VERTICAL_STEP_STUFFING_REDUCTION);
-}
-
 function centerVertically(graph) {
   const ys = graph.allStitches.map(stitch => stitch.position.y);
   if (ys.length === 0) return;
@@ -308,4 +307,111 @@ function distance2d(a, b) {
 function average(values) {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function buildThetaProfile(radii, stuffing) {
+  const roundCount = radii.length;
+  if (roundCount === 0) return [];
+
+  const { expansionEnd, contractionStart } = detectEquatorRegion(radii);
+  const maxTheta = degreesToRadians(lerp(THETA_MAX_ANGLE_FLAT_DEGREES, THETA_MAX_ANGLE_FULL_DEGREES, stuffing));
+  const rampPower = lerp(THETA_RAMP_POWER_FLAT, THETA_RAMP_POWER_FULL, stuffing);
+  const theta = new Array(roundCount).fill(0);
+
+  for (let ri = 0; ri < roundCount; ri++) {
+    const phase = thetaPhase(ri, roundCount, expansionEnd, contractionStart);
+    const shapedPhase = Math.pow(clamp01(phase), rampPower);
+    theta[ri] = maxTheta * shapedPhase;
+  }
+
+  return smoothNumericProfile(theta, THETA_SMOOTHING_PASSES);
+}
+
+function detectEquatorRegion(radii) {
+  const maxRadius = Math.max(...radii);
+  const deltas = [];
+  for (let i = 0; i < radii.length - 1; i++) {
+    deltas.push(radii[i + 1] - radii[i]);
+  }
+
+  const threshold = maxRadius * THETA_DELTA_THRESHOLD_RATIO;
+  const maxIndex = radii.indexOf(maxRadius);
+  let expansionEnd = maxIndex;
+  let contractionStart = maxIndex;
+
+  let sawExpansion = false;
+  for (let i = 0; i < deltas.length; i++) {
+    if (deltas[i] > threshold) {
+      sawExpansion = true;
+      continue;
+    }
+    if (sawExpansion) {
+      expansionEnd = i;
+      break;
+    }
+  }
+
+  let sawContraction = false;
+  for (let i = deltas.length - 1; i >= 0; i--) {
+    if (deltas[i] < -threshold) {
+      sawContraction = true;
+      continue;
+    }
+    if (sawContraction) {
+      contractionStart = i + 1;
+      break;
+    }
+  }
+
+  if (expansionEnd > contractionStart) {
+    expansionEnd = maxIndex;
+    contractionStart = maxIndex;
+  }
+
+  return { expansionEnd, contractionStart };
+}
+
+function thetaPhase(roundIndex, roundCount, expansionEnd, contractionStart) {
+  if (roundCount <= 1) return 0;
+  if (roundIndex <= expansionEnd) {
+    const t = expansionEnd <= 0 ? 1 : roundIndex / expansionEnd;
+    return smoothstep(clamp01(t));
+  }
+
+  if (roundIndex >= contractionStart) {
+    const descentSpan = (roundCount - 1) - contractionStart;
+    const t = descentSpan <= 0 ? 1 : ((roundCount - 1) - roundIndex) / descentSpan;
+    return smoothstep(clamp01(t));
+  }
+
+  return 1;
+}
+
+function smoothNumericProfile(values, passes) {
+  if (values.length < 3 || passes <= 0) return values;
+  let smoothed = [...values];
+  for (let pass = 0; pass < passes; pass++) {
+    const next = [...smoothed];
+    for (let i = 1; i < smoothed.length - 1; i++) {
+      next[i] = (smoothed[i - 1] + smoothed[i] * 2 + smoothed[i + 1]) / 4;
+    }
+    smoothed = next;
+  }
+  return smoothed;
+}
+
+function smoothstep(t) {
+  return t * t * (3 - 2 * t);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * clamp01(t);
+}
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function degreesToRadians(degrees) {
+  return (degrees * Math.PI) / 180;
 }
